@@ -12,7 +12,17 @@ from config import (
     REQUIRED_OHLCV_HEADERS,
     HISTORICAL_REQUEST_LIMITS,
     HISTORICAL_DATA_AVAILABILITY,
+    FETCHING_ENGINES,
+    YF_HISTORICAL_DATA_AVAILABILITY,
+    YF_HISTORICAL_REQUEST_LIMITS
 )
+
+if FETCHING_ENGINES == "Groww":
+    pass
+elif FETCHING_ENGINES == "yFinance":
+    HISTORICAL_REQUEST_LIMITS = YF_HISTORICAL_REQUEST_LIMITS
+    HISTORICAL_DATA_AVAILABILITY = YF_HISTORICAL_DATA_AVAILABILITY
+
 
 
 class ReqsHandler:
@@ -81,28 +91,55 @@ class ReqsHandler:
 
 
     def is_request_within_limit(self, start_ts, end_ts, interval):
-        if interval not in self.historical_request_limits:
-            raise ValueError(f"Unsupported interval: {interval}")
+        if FETCHING_ENGINES == "Groww":
+            historical_request_limits = HISTORICAL_REQUEST_LIMITS
+            historical_data_availability = HISTORICAL_DATA_AVAILABILITY
+            if interval not in self.historical_request_limits:
+                raise ValueError(f"Unsupported interval: {interval}")
 
-        if end_ts <= start_ts:
-            raise ValueError("end_ts must be greater than start_ts")
-        
-        
-        requested_range = end_ts - start_ts
-        allowed_request_range = self.historical_request_limits[interval]
-
-        if requested_range > allowed_request_range:
-            return "Chunking_needed"
-
-        available_history = self.historical_data_availability.get(interval, float("inf"))
-        if available_history != float("inf"):
-            current_ts = int(datetime.now().timestamp())
-            oldest_allowed_ts = current_ts - available_history
-            if start_ts < oldest_allowed_ts:
-                oldest_allowed_dt = self.timestamp_to_datetime(oldest_allowed_ts)
-                raise ValueError(f"{interval} data only available since {oldest_allowed_dt}")
+            if end_ts <= start_ts:
+                raise ValueError("end_ts must be greater than start_ts")
             
-        return "Chunking_not_needed"
+            
+            requested_range = end_ts - start_ts
+            
+
+            available_history = historical_data_availability.get(interval, float("inf"))
+            if available_history != float("inf"):
+                current_ts = int(datetime.now().timestamp())
+                oldest_allowed_ts = current_ts - available_history
+                if start_ts < oldest_allowed_ts:
+                    oldest_allowed_dt = self.timestamp_to_datetime(oldest_allowed_ts)
+                    raise ValueError(f"{interval} data only available since {oldest_allowed_dt}")
+            allowed_request_range = historical_request_limits[interval]
+
+            if requested_range > allowed_request_range:
+                return "Chunking_needed"
+            return "Chunking_not_needed"
+        elif FETCHING_ENGINES == "yFinance":
+            historical_request_limits = YF_HISTORICAL_REQUEST_LIMITS
+            historical_data_availability = YF_HISTORICAL_DATA_AVAILABILITY
+            if interval not in self.historical_request_limits:
+                raise ValueError(f"Unsupported interval: {interval}")
+
+            if end_ts <= start_ts:
+                raise ValueError("end_ts must be greater than start_ts")
+            
+            
+            requested_range = end_ts - start_ts
+
+            available_history = historical_data_availability.get(interval, float("inf"))
+            if available_history != float("inf"):
+                current_ts = int(datetime.now().timestamp())
+                oldest_allowed_ts = current_ts - available_history
+                if start_ts < oldest_allowed_ts:
+                    oldest_allowed_dt = self.timestamp_to_datetime(oldest_allowed_ts)
+                    raise ValueError(f"{interval} data only available since {oldest_allowed_dt}")
+            allowed_request_range = historical_request_limits[interval]
+
+            if requested_range > allowed_request_range:
+                return "Chunking_needed"   
+            return "Chunking_not_needed"
 
     def create_fetch_plan(self, symbol, exchange, interval, start_ts, end_ts):
         
